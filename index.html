@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Daily Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Gochi+Hand&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-primary-600: #4f46e5;
+            --color-primary-700: #4338ca;
+            --color-secondary-100: #eef2ff;
+            --color-secondary-700: #4338ca;
+            --color-accent-100: #f5f3ff;
+            --color-accent-800: #4c1d95;
+        }
+        html[data-theme="forest"] {
+            --color-primary-600: #16a34a;
+            --color-primary-700: #15803d;
+            --color-secondary-100: #dcfce7;
+            --color-secondary-700: #166534;
+            --color-accent-100: #f0fdf4;
+            --color-accent-800: #14532d;
+        }
+        html[data-theme="ocean"] {
+            --color-primary-600: #0d9488;
+            --color-primary-700: #0f766e;
+            --color-secondary-100: #ccfbf1;
+            --color-secondary-700: #115e59;
+            --color-accent-100: #f0fdfa;
+            --color-accent-800: #042f2e;
+        }
+        html[data-theme="sunset"] {
+            --color-primary-600: #f97316;
+            --color-primary-700: #ea580c;
+            --color-secondary-100: #ffedd5;
+            --color-secondary-700: #9a3412;
+            --color-accent-100: #fff7ed;
+            --color-accent-800: #7c2d12;
+        }
+        html[data-theme="graphite"] {
+            --color-primary-600: #475569;
+            --color-primary-700: #334155;
+            --color-secondary-100: #e2e8f0;
+            --color-secondary-700: #1e293b;
+            --color-accent-100: #f1f5f9;
+            --color-accent-800: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-handwriting {
+            font-family: 'Gochi Hand', cursive;
+        }
+        .time-slot {
+            display: flex;
+            align-items: center;
+            padding: 1.25rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease-in-out;
+        }
+        .time-slot:hover {
+            transform: translateY(-2px);
+        }
+        .current-task {
+            background-color: var(--color-secondary-100) !important;
+            border-left: 4px solid var(--color-primary-600);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .checklist-item input:checked + label {
+            text-decoration: line-through;
+            color: #94a3b8; /* slate-400 */
+        }
+        .fade-out {
+            animation: fadeOut 0.3s ease-out forwards;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(20px); }
+        }
+        #reminder-toggle:checked ~ .dot {
+            transform: translateX(100%);
+            background-color: var(--color-primary-600);
+        }
+        #reminder-toggle:checked ~ .block {
+            background-color: var(--color-secondary-100);
+        }
+        #timer-display:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--color-primary-600);
+            border-radius: 0.5rem;
+        }
+        .nav-btn.active {
+            background-color: var(--color-primary-600);
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 transition-colors duration-300">
+    
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-8">
+            <h2 class="text-3xl font-bold text-center text-slate-800 mb-6">Welcome Back!</h2>
+            <div id="auth-error-message" class="text-red-500 text-center mb-4 min-h-[40px]"></div>
+            <form id="auth-form" class="space-y-4">
+                <input type="email" id="auth-email" placeholder="Email Address" required class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] transition">
+                <input type="password" id="auth-password" placeholder="Password" required class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] transition">
+                <div class="flex gap-4">
+                    <button type="button" id="login-btn" class="flex-1 py-2 px-5 bg-[var(--color-primary-600)] text-white font-semibold rounded-lg hover:bg-[var(--color-primary-700)] transition">Sign In</button>
+                    <button type="button" id="signup-btn" class="flex-1 py-2 px-5 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition">Sign Up</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-container" class="container mx-auto px-4 py-8 md:py-12 max-w-6xl">
+        <header class="text-center mb-8 relative">
+            <h1 class="font-handwriting text-5xl md:text-6xl text-[var(--color-primary-600)]">My Daily Planner</h1>
+            <p class="text-slate-500 mt-2">A holistic planner for your body, mind, and soul.</p>
+            <div id="user-display" class="absolute top-0 left-0 text-left text-sm"></div>
+            <div class="absolute top-0 right-0 flex gap-1 items-center">
+                 <button id="header-save-btn" class="p-2 text-slate-500 hover:text-[var(--color-primary-600)] transition" title="Save Today's Log">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" />
+                    </svg>
+                </button>
+                <button id="logbook-btn" class="p-2 text-slate-500 hover:text-[var(--color-primary-600)] transition" title="View Daily Logs">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                </button>
+                <button id="edit-schedule-btn" class="p-2 text-slate-500 hover:text-[var(--color-primary-600)] transition" title="Edit Schedule">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="mb-8 flex justify-center">
+            <div class="flex border border-slate-300 rounded-lg p-1 bg-slate-100">
+                <button id="nav-schedule" data-page="page-schedule" class="nav-btn px-6 py-2 text-lg font-medium rounded-md transition active">Schedule</button>
+                <button id="nav-tasks" data-page="page-tasks" class="nav-btn px-6 py-2 text-lg font-medium rounded-md transition">Tasks & Goals</button>
+                <button id="nav-trackers" data-page="page-trackers" class="nav-btn px-6 py-2 text-lg font-medium rounded-md transition">Trackers</button>
+            </div>
+        </nav>
+
+        <!-- Page: Schedule -->
+        <div id="page-schedule">
+            <div class="flex flex-col md:flex-row gap-8">
+                <main class="flex-1">
+                    <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                            <label for="wakeUpTime" class="text-lg font-medium">Input wake up time:</label>
+                            <input type="text" id="wakeUpTime" placeholder="e.g., 7:30" class="w-full sm:w-32 text-center text-lg px-4 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] focus:border-[var(--color-primary-600)] transition" maxlength="5" inputmode="numeric">
+                            <div class="flex rounded-md" role="group">
+                                <button type="button" id="am-btn" class="px-6 py-2 text-lg font-medium text-white bg-[var(--color-primary-600)] border border-[var(--color-primary-600)] rounded-l-lg hover:bg-[var(--color-primary-700)] focus:z-10 focus:ring-2 focus:ring-[var(--color-primary-600)]">
+                                    AM
+                                </button>
+                                <button type="button" id="pm-btn" class="px-6 py-2 text-lg font-medium text-slate-900 bg-white border border-slate-300 rounded-r-lg hover:bg-slate-100 focus:z-10 focus:ring-2 focus:ring-[var(--color-primary-600)]">
+                                    PM
+                                </button>
+                            </div>
+                        </div>
+                        <div id="error-message" class="text-red-500 text-center mt-3 h-5"></div>
+                    </div>
+
+                    <div id="schedule-container" class="space-y-4">
+                        <!-- Schedule will be generated here -->
+                    </div>
+                </main>
+
+                <aside class="w-full md:w-80 lg:w-96 space-y-8">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Focus Timer</h2>
+                        <input type="text" id="timer-display" class="text-6xl font-mono text-center text-slate-800 py-4 w-full bg-transparent" value="25:00">
+                        <div class="flex justify-center gap-4">
+                            <button id="start-pause-btn" class="px-6 py-2 bg-[var(--color-primary-600)] text-white font-semibold rounded-lg hover:bg-[var(--color-primary-700)] transition">Start</button>
+                            <button id="reset-timer-btn" class="px-6 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition">Reset</button>
+                        </div>
+                        <div class="text-center text-sm text-slate-500 mt-4">
+                            <div id="focus-display-wrapper" class="flex items-center justify-center gap-2">
+                                <span>Today's Focus Time: <span id="total-focus-time" class="font-bold">0m</span></span>
+                                <button id="add-focus-time-btn" class="p-1 text-slate-400 hover:text-[var(--color-primary-600)] transition" title="Manually Add Focus Time">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="add-focus-time-wrapper" class="hidden items-center justify-center gap-2 mt-1">
+                                <input type="number" id="manual-focus-input" class="w-20 text-center bg-slate-100 border border-slate-300 rounded-md p-1" placeholder="Mins">
+                                <button id="confirm-add-focus-btn" class="px-3 py-1 bg-green-500 text-white text-xs font-semibold rounded-md hover:bg-green-600">Add</button>
+                                <button id="cancel-add-focus-btn" class="p-1 text-slate-400 hover:text-red-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <!-- Page: Tasks & Goals -->
+        <div id="page-tasks" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-slate-800">Today's To-Do List</h2>
+                        <button id="reset-todo-btn" class="p-2 text-slate-400 hover:text-[var(--color-primary-600)] transition" title="Reset List">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="todo-input" placeholder="Add a new task..." class="flex-grow px-3 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] focus:border-[var(--color-primary-600)] transition">
+                        <button id="add-todo-btn" class="bg-[var(--color-primary-600)] text-white p-2 rounded-md hover:bg-[var(--color-primary-700)] transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="todo-list-container" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        <!-- To-do items will be generated here -->
+                    </div>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-slate-800">Weekly Goals</h2>
+                        <button id="reset-weekly-goals-btn" class="p-2 text-slate-400 hover:text-[var(--color-primary-600)] transition" title="Reset Weekly Goals">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="weekly-goal-input" placeholder="Add a new goal..." class="flex-grow px-3 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] focus:border-[var(--color-primary-600)] transition">
+                        <button id="add-weekly-goal-btn" class="bg-[var(--color-primary-600)] text-white p-2 rounded-md hover:bg-[var(--color-primary-700)] transition">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="weekly-goals-container" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        <!-- Weekly goals will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Trackers -->
+        <div id="page-trackers" class="hidden">
+             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-1">
+                        <h2 class="text-2xl font-bold text-slate-800">Salah Tracker</h2>
+                        <div class="flex items-center gap-2">
+                            <label for="reminder-toggle" class="flex items-center cursor-pointer" title="Toggle prayer reminders">
+                                <span class="mr-2 text-sm text-slate-600">Sound</span>
+                                <div class="relative">
+                                    <input type="checkbox" id="reminder-toggle" class="sr-only">
+                                    <div class="block bg-gray-300 w-10 h-6 rounded-full"></div>
+                                    <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
+                                </div>
+                            </label>
+                            <button id="reset-salah-btn" class="p-2 text-slate-400 hover:text-[var(--color-primary-600)] transition" title="Reset Tracker">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mb-4 text-xs">
+                        <span id="location-display" class="text-slate-500 italic">Location: Riyadh, SA</span>
+                        <button id="locate-me-btn" class="text-[var(--color-primary-600)] hover:underline font-semibold">Use My Location</button>
+                    </div>
+                    <div id="salah-tracker-container" class="space-y-3">
+                        <!-- Salah tracker items will be generated here -->
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                     <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-slate-800">Habit Tracker</h2>
+                         <button id="reset-habits-btn" class="p-2 text-slate-400 hover:text-[var(--color-primary-600)] transition" title="Reset Habits">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="habit-input" placeholder="Add a new habit..." class="flex-grow px-3 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] focus:border-[var(--color-primary-600)] transition">
+                        <button id="add-habit-btn" class="bg-[var(--color-primary-600)] text-white p-2 rounded-md hover:bg-[var(--color-primary-700)] transition">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="habits-container" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        <!-- Habit items will be generated here -->
+                    </div>
+                </div>
+             </div>
+        </div>
+    </div>
+
+    <!-- Edit Schedule Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                <h2 class="text-2xl font-bold text-slate-800">Edit Settings</h2>
+                <button id="close-modal-btn" class="text-3xl text-slate-500 hover:text-slate-800 transition">&times;</button>
+            </div>
+            
+            <div class="overflow-y-auto">
+                <div id="edit-form-container" class="p-6 space-y-4">
+                    <!-- Edit form rows will be generated here -->
+                </div>
+                <div class="px-6 pb-4 border-t pt-4">
+                    <button id="add-task-btn" class="w-full py-2 px-4 bg-[var(--color-secondary-100)] text-[var(--color-secondary-700)] font-semibold rounded-lg hover:bg-opacity-80 transition">Add New Time Block</button>
+                </div>
+                <div class="p-6 border-t space-y-2 bg-slate-50">
+                    <h3 class="text-lg font-semibold text-slate-700">Schedule Templates</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="template-name-input" placeholder="New template name..." class="flex-grow p-2 bg-white border border-slate-300 rounded-md">
+                        <button id="save-template-btn" class="py-2 px-4 bg-[var(--color-accent-100)] text-[var(--color-accent-800)] font-semibold rounded-lg hover:bg-opacity-80 transition">Save</button>
+                    </div>
+                    <div class="flex gap-2 items-center">
+                        <select id="template-select" class="flex-grow p-2 bg-white border border-slate-300 rounded-md"></select>
+                        <button id="load-template-btn" class="p-2 text-slate-500 hover:text-[var(--color-primary-600)] transition" title="Load Template">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 001.414 1.414L10 9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <button id="delete-template-btn" class="p-2 text-slate-400 hover:text-red-500 transition" title="Delete Template">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6 border-t space-y-2">
+                    <h3 class="text-lg font-semibold text-slate-700">Color Theme</h3>
+                    <div id="theme-selector" class="flex flex-wrap gap-3">
+                        <button data-theme="default" class="theme-btn w-10 h-10 bg-[#4f46e5] rounded-full border-2 border-white ring-2 ring-offset-1 ring-slate-400" title="Indigo"></button>
+                        <button data-theme="forest" class="theme-btn w-10 h-10 bg-[#16a34a] rounded-full border-2 border-white" title="Forest"></button>
+                        <button data-theme="ocean" class="theme-btn w-10 h-10 bg-[#0d9488] rounded-full border-2 border-white" title="Ocean"></button>
+                        <button data-theme="sunset" class="theme-btn w-10 h-10 bg-[#f97316] rounded-full border-2 border-white" title="Sunset"></button>
+                        <button data-theme="graphite" class="theme-btn w-10 h-10 bg-[#475569] rounded-full border-2 border-white" title="Graphite"></button>
+                    </div>
+                </div>
+                <div class="p-6 border-t space-y-2">
+                    <h3 class="text-lg font-semibold text-slate-700">Data Management</h3>
+                    <p class="text-sm text-slate-500">Save your data to a file or load it from a backup.</p>
+                    <div class="flex gap-2">
+                        <button id="export-data-btn" class="flex-1 py-2 px-4 bg-green-100 text-green-800 font-semibold rounded-lg hover:bg-green-200 transition">Export Data</button>
+                        <label for="import-data-input" class="flex-1 text-center py-2 px-4 bg-blue-100 text-blue-800 font-semibold rounded-lg hover:bg-blue-200 transition cursor-pointer">Import Data</label>
+                        <input type="file" id="import-data-input" class="hidden" accept=".json">
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 border-t flex justify-between items-center gap-3 flex-shrink-0">
+                <button id="reset-btn" class="py-2 px-5 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition text-slate-600 hover:text-red-600">Reset to Default</button>
+                <div class="flex gap-3">
+                    <button id="cancel-btn" class="py-2 px-5 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">Cancel</button>
+                    <button id="save-btn" class="py-2 px-5 bg-[var(--color-primary-600)] text-white font-semibold rounded-lg hover:bg-[var(--color-primary-700)] transition">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Logbook Modal -->
+    <div id="logbook-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                <h2 class="text-2xl font-bold text-slate-800">Daily Logbook</h2>
+                <button id="close-logbook-btn" class="text-3xl text-slate-500 hover:text-slate-800 transition">&times;</button>
+            </div>
+            <div id="logbook-container" class="p-6 space-y-4 overflow-y-auto">
+                <!-- Logbook entries will be generated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Log Modal -->
+    <div id="edit-log-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                <h2 class="text-2xl font-bold text-slate-800">Edit Log Entry</h2>
+                <button id="close-edit-log-btn" class="text-3xl text-slate-500 hover:text-slate-800 transition">&times;</button>
+            </div>
+            <div id="edit-log-container" class="p-6 space-y-4 overflow-y-auto">
+                <!-- Dynamic content will be generated here -->
+            </div>
+            <div class="p-4 bg-slate-50 border-t flex justify-end items-center gap-3 flex-shrink-0">
+                <button id="cancel-edit-log-btn" class="py-2 px-5 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">Cancel</button>
+                <button id="save-edit-log-btn" class="py-2 px-5 bg-[var(--color-primary-600)] text-white font-semibold rounded-lg hover:bg-[var(--color-primary-700)] transition">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEMPLATES for DOM manipulation -->
+    <template id="schedule-item-template">
+        <div class="time-slot bg-white shadow-md">
+            <div class="flex-shrink-0 w-32 md:w-40 text-center">
+                <p class="start-time font-bold text-[var(--color-primary-600)]"></p>
+                <p class="text-sm text-slate-500">to</p>
+                <p class="end-time font-bold text-[var(--color-primary-600)]"></p>
+            </div>
+            <div class="border-l-2 border-slate-200 pl-4 ml-4 flex-1">
+                <p class="task-title font-semibold text-lg"></p>
+                <p class="task-notes text-sm text-slate-500 italic mt-1"></p>
+            </div>
+        </div>
+    </template>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const authModal = document.getElementById('auth-modal');
+        const appContainer = document.getElementById('app-container');
+        const authForm = document.getElementById('auth-form');
+        const authEmailInput = document.getElementById('auth-email');
+        const authPasswordInput = document.getElementById('auth-password');
+        const loginBtn = document.getElementById('login-btn');
+        const signupBtn = document.getElementById('signup-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userDisplay = document.getElementById('user-display');
+        const authErrorMessage = document.getElementById('auth-error-message');
+
+        const wakeUpTimeInput = document.getElementById('wakeUpTime');
+        const amBtn = document.getElementById('am-btn');
+        const pmBtn = document.getElementById('pm-btn');
+        const scheduleContainer = document.getElementById('schedule-container');
+        const errorMessage = document.getElementById('error-message');
+        
+        const editScheduleBtn = document.getElementById('edit-schedule-btn');
+        const editModal = document.getElementById('edit-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const addTaskBtn = document.getElementById('add-task-btn');
+        const editFormContainer = document.getElementById('edit-form-container');
+        const resetBtn = document.getElementById('reset-btn');
+
+        const todoInput = document.getElementById('todo-input');
+        const addTodoBtn = document.getElementById('add-todo-btn');
+        const todoListContainer = document.getElementById('todo-list-container');
+        
+        const logbookBtn = document.getElementById('logbook-btn');
+        const logbookModal = document.getElementById('logbook-modal');
+        const closeLogbookBtn = document.getElementById('close-logbook-btn');
+        const logbookContainer = document.getElementById('logbook-container');
+        
+        const headerSaveBtn = document.getElementById('header-save-btn');
+        const salahTrackerContainer = document.getElementById('salah-tracker-container');
+        const salahNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+        
+        const resetTodoBtn = document.getElementById('reset-todo-btn');
+        const resetSalahBtn = document.getElementById('reset-salah-btn');
+        const locateMeBtn = document.getElementById('locate-me-btn');
+        const locationDisplay = document.getElementById('location-display');
+        const reminderToggle = document.getElementById('reminder-toggle');
+        
+        const exportDataBtn = document.getElementById('export-data-btn');
+        const importDataInput = document.getElementById('import-data-input');
+
+        // Edit Log Modal Elements
+        const editLogModal = document.getElementById('edit-log-modal');
+        const closeEditLogBtn = document.getElementById('close-edit-log-btn');
+        const editLogContainer = document.getElementById('edit-log-container');
+        const saveEditLogBtn = document.getElementById('save-edit-log-btn');
+        const cancelEditLogBtn = document.getElementById('cancel-edit-log-btn');
+
+        // Template Elements
+        const templateNameInput = document.getElementById('template-name-input');
+        const saveTemplateBtn = document.getElementById('save-template-btn');
+        const templateSelect = document.getElementById('template-select');
+        const loadTemplateBtn = document.getElementById('load-template-btn');
+        const deleteTemplateBtn = document.getElementById('delete-template-btn');
+
+        // Weekly Goals Elements
+        const weeklyGoalInput = document.getElementById('weekly-goal-input');
+        const addWeeklyGoalBtn = document.getElementById('add-weekly-goal-btn');
+        const weeklyGoalsContainer = document.getElementById('weekly-goals-container');
+        const resetWeeklyGoalsBtn = document.getElementById('reset-weekly-goals-btn');
+
+        // Focus Timer Elements
+        const timerDisplay = document.getElementById('timer-display');
+        const startPauseBtn = document.getElementById('start-pause-btn');
+        const resetTimerBtn = document.getElementById('reset-timer-btn');
+        const totalFocusTimeDisplay = document.getElementById('total-focus-time');
+        const addFocusTimeBtn = document.getElementById('add-focus-time-btn');
+        const focusDisplayWrapper = document.getElementById('focus-display-wrapper');
+        const addFocusTimeWrapper = document.getElementById('add-focus-time-wrapper');
+        const manualFocusInput = document.getElementById('manual-focus-input');
+        const confirmAddFocusBtn = document.getElementById('confirm-add-focus-btn');
+        const cancelAddFocusBtn = document.getElementById('cancel-add-focus-btn');
+        
+        // Habit Tracker Elements
+        const habitInput = document.getElementById('habit-input');
+        const addHabitBtn = document.getElementById('add-habit-btn');
+        const habitsContainer = document.getElementById('habits-container');
+        const resetHabitsBtn = document.getElementById('reset-habits-btn');
+
+        // Theme Elements
+        const themeSelector = document.getElementById('theme-selector');
+
+        // Navigation Elements
+        const navButtons = document.querySelectorAll('.nav-btn');
+        const pages = document.querySelectorAll('[id^="page-"]');
+
+        // --- State Variables ---
+        let selectedMeridiem = 'am';
+        let scheduleStructure = [];
+        let todoList = [];
+        let weeklyGoals = [];
+        let habits = [];
+        let salahTracker = {};
+        let appData = {};
+        let prayerTimes = {};
+        let remindersPlayedToday = {};
+        let timerInterval = null;
+        let timeLeft = 1500;
+        let isTimerRunning = false;
+        let totalFocusTimeToday = 0;
+
+        // --- DATA HANDLING ---
+        function getTodayDateString() {
+            const today = new Date();
+            return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        }
+
+        async function fetchPrayerTimes() {
+            const savedLocation = appData.location || { type: 'city', city: 'Riyadh', country: 'Saudi Arabia' };
+            let url;
+
+            if (savedLocation.type === 'coords') {
+                url = `https://api.aladhan.com/v1/timings?latitude=${savedLocation.latitude}&longitude=${savedLocation.longitude}&method=4`;
+                locationDisplay.textContent = `Location: Current`;
+            } else {
+                url = `https://api.aladhan.com/v1/timingsByCity?city=${savedLocation.city}&country=${savedLocation.country}&method=4`;
+                locationDisplay.textContent = `Location: ${savedLocation.city}`;
+            }
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+                prayerTimes = data.data.timings;
+            } catch (error) {
+                console.error('Failed to fetch prayer times:', error);
+                salahTrackerContainer.innerHTML += `<p class="text-xs text-red-500 text-center">Could not load prayer times.</p>`;
+            }
+        }
+
+        async function loadAppData() {
+            const savedData = localStorage.getItem('schedulerApp');
+            appData = savedData ? JSON.parse(savedData) : {
+                scheduleStructure: [],
+                lastWakeUp: { time: '7:30', meridiem: 'am' },
+                dailyLogs: {},
+                location: { type: 'city', city: 'Riyadh', country: 'Saudi Arabia' },
+                soundEnabled: false,
+                scheduleTemplates: {},
+                weeklyGoals: [],
+                habits: [],
+                theme: 'default'
+            };
+            
+            // Populate state from appData
+            scheduleStructure = appData.scheduleStructure || [];
+            wakeUpTimeInput.value = appData.lastWakeUp?.time || '7:30';
+            updateMeridiemSelection(appData.lastWakeUp?.meridiem || 'am', false); 
+            
+            const today = getTodayDateString();
+            const todayLog = appData.dailyLogs?.[today];
+            todoList = todayLog?.todos || [];
+            salahTracker = todayLog?.salahs || { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false };
+            weeklyGoals = appData.weeklyGoals || [];
+            habits = appData.habits || [];
+            totalFocusTimeToday = todayLog?.focusTime || 0;
+            
+            updateTotalFocusDisplay();
+            reminderToggle.checked = appData.soundEnabled || false;
+            applyTheme(appData.theme || 'default');
+            
+            await fetchPrayerTimes();
+            renderAll();
+        }
+
+        async function saveAppData() {
+            // Construct the data object from current state
+            appData = {
+                scheduleStructure,
+                lastWakeUp: { time: wakeUpTimeInput.value, meridiem: selectedMeridiem },
+                dailyLogs: appData.dailyLogs || {},
+                location: appData.location || { type: 'city', city: 'Riyadh', country: 'Saudi Arabia' },
+                soundEnabled: reminderToggle.checked,
+                scheduleTemplates: appData.scheduleTemplates || {},
+                weeklyGoals,
+                habits,
+                theme: document.documentElement.dataset.theme || 'default'
+            };
+            localStorage.setItem('schedulerApp', JSON.stringify(appData));
+        }
+
+        function saveDailyLog() {
+            const today = getTodayDateString();
+            if (!appData.dailyLogs) appData.dailyLogs = {};
+            appData.dailyLogs[today] = {
+                todos: todoList,
+                wakeUp: `${wakeUpTimeInput.value} ${selectedMeridiem.toUpperCase()}`,
+                salahs: salahTracker,
+                weeklyGoals: JSON.parse(JSON.stringify(weeklyGoals)), // Save a snapshot of weekly goals for that day
+                habits: JSON.parse(JSON.stringify(habits)), // Save a snapshot of habits
+                focusTime: totalFocusTimeToday
+            };
+            appData.lastWakeUp = { time: wakeUpTimeInput.value, meridiem: selectedMeridiem };
+            
+            saveAppData(); // This now saves to localStorage
+            
+            const originalIcon = headerSaveBtn.innerHTML;
+            headerSaveBtn.innerHTML = `<span class="text-sm font-semibold text-[var(--color-primary-600)]">Saved!</span>`;
+            headerSaveBtn.disabled = true;
+            
+            setTimeout(() => {
+                headerSaveBtn.innerHTML = originalIcon;
+                headerSaveBtn.disabled = false;
+            }, 2000);
+        }
+
+        function exportData() {
+            // We'll export the entire appData object which is kept in sync
+            const dataStr = JSON.stringify(appData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `my-planner-backup-${getTodayDateString()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    // Basic validation
+                    if (importedData.scheduleStructure && importedData.dailyLogs) {
+                        appData = importedData;
+                        await saveAppData(); // Save the newly imported data to localStorage
+                        alert('Data imported successfully! The app will now reload.');
+                        location.reload();
+                    } else {
+                        alert('Invalid data file. Please select a valid planner backup file.');
+                    }
+                } catch (error) {
+                    alert('Error reading or parsing file. Please ensure it is a valid backup file.');
+                    console.error('Import error:', error);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // --- UI RENDERING ---
+        function renderAll() {
+            generateSchedule();
+            renderTodoList();
+            renderWeeklyGoals();
+            renderSalahTracker();
+            renderHabitTracker();
+        }
+
+        function createChecklistItem(item, index, type) {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'checklist-item flex items-center gap-3 bg-slate-100 p-2 rounded-md fade-in';
+            itemDiv.innerHTML = `
+                <input type="checkbox" id="${type}-item-${index}" data-index="${index}" class="h-5 w-5 rounded border-gray-300 text-[var(--color-primary-600)] focus:ring-[var(--color-primary-600)] cursor-pointer flex-shrink-0" ${item.completed ? 'checked' : ''}>
+                <label for="${type}-item-${index}" class="text-slate-700 cursor-pointer flex-grow">${item.text}</label>
+                <button data-index="${index}" class="delete-btn p-1 text-slate-400 hover:text-red-500 hover:bg-red-100 rounded-full flex-shrink-0">
+                    <svg class="h-5 w-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            `;
+            return itemDiv;
+        }
+
+        function renderTodoList() {
+            todoListContainer.innerHTML = '';
+            if (todoList.length === 0) {
+                todoListContainer.innerHTML = `<p class="text-slate-400 text-center italic">No tasks yet. Add one!</p>`;
+                return;
+            }
+            todoList.forEach((item, index) => {
+                const todoItem = createChecklistItem(item, index, 'todo');
+                todoListContainer.appendChild(todoItem);
+            });
+        }
+
+        function renderWeeklyGoals() {
+            weeklyGoalsContainer.innerHTML = '';
+            if (weeklyGoals.length === 0) {
+                weeklyGoalsContainer.innerHTML = `<p class="text-slate-400 text-center italic">No goals for this week.</p>`;
+                return;
+            }
+            weeklyGoals.forEach((goal, index) => {
+                const goalItem = createChecklistItem(goal, index, 'goal');
+                weeklyGoalsContainer.appendChild(goalItem);
+            });
+        }
+        
+        function renderSalahTracker() {
+            salahTrackerContainer.innerHTML = '';
+            salahNames.forEach(name => {
+                const nameLower = name.toLowerCase();
+                const salahItem = document.createElement('div');
+                salahItem.className = 'checklist-item flex items-center gap-3 bg-slate-100 p-2 rounded-md';
+                
+                const time = prayerTimes[name];
+                const timeHtml = time ? `<span class="ml-auto text-sm font-mono text-slate-500">${time}</span>` : '<span class="ml-auto text-sm font-mono text-slate-400">--:--</span>';
+
+                salahItem.innerHTML = `
+                    <input type="checkbox" id="salah-${nameLower}" data-salah="${nameLower}" class="h-5 w-5 rounded border-gray-300 text-[var(--color-primary-600)] focus:ring-[var(--color-primary-600)] cursor-pointer flex-shrink-0" ${salahTracker[nameLower] ? 'checked' : ''}>
+                    <label for="salah-${nameLower}" class="text-slate-700 cursor-pointer flex-grow">${name}</label>
+                    ${timeHtml}
+                `;
+                salahTrackerContainer.appendChild(salahItem);
+            });
+        }
+
+        function renderHabitTracker() {
+            habitsContainer.innerHTML = '';
+            if (habits.length === 0) {
+                habitsContainer.innerHTML = `<p class="text-slate-400 text-center italic">No habits yet. Add one!</p>`;
+                return;
+            }
+            const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+            habits.forEach((habit, habitIndex) => {
+                const habitItem = document.createElement('div');
+                habitItem.className = 'bg-slate-100 p-3 rounded-lg fade-in';
+
+                let checkboxesHtml = dayLabels.map((day, dayIndex) => {
+                    const isChecked = habit.completed[dayIndex];
+                    return `
+                        <label class="flex flex-col items-center cursor-pointer">
+                            <span class="text-xs mb-1 ${isChecked ? 'font-bold text-[var(--color-primary-600)]' : 'text-slate-500'}">${day}</span>
+                            <input type="checkbox" data-habit-index="${habitIndex}" data-day-index="${dayIndex}" class="habit-checkbox h-5 w-5 rounded-sm border-gray-300 text-[var(--color-primary-600)] focus:ring-[var(--color-primary-600)]" ${isChecked ? 'checked' : ''}>
+                        </label>
+                    `;
+                }).join('');
+
+                habitItem.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="font-semibold text-slate-800">${habit.text}</p>
+                        <button data-index="${habitIndex}" class="delete-habit-btn p-1 text-slate-400 hover:text-red-500 hover:bg-red-100 rounded-full">
+                            <svg class="h-5 w-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    <div class="flex justify-around gap-1">
+                        ${checkboxesHtml}
+                    </div>
+                `;
+                habitsContainer.appendChild(habitItem);
+            });
+        }
+
+        function formatTimeForTimer(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        }
+
+        function formatTimeForSchedule(date) {
+            let hours = date.getHours();
+            let minutes = date.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            return `${hours}:${minutes} ${ampm}`;
+        }
+        
+        function updateCurrentTaskHighlight() {
+            const now = new Date().getTime();
+            const allSlots = document.querySelectorAll('.time-slot');
+
+            allSlots.forEach(slot => {
+                const startTime = parseInt(slot.dataset.startTime, 10);
+                const endTime = parseInt(slot.dataset.endTime, 10);
+
+                if (now >= startTime && now < endTime) {
+                    slot.classList.add('current-task');
+                } else {
+                    slot.classList.remove('current-task');
+                }
+            });
+        }
+
+        function updateMeridiemSelection(newMeridiem, shouldSave = true) {
+            selectedMeridiem = newMeridiem;
+            if (newMeridiem === 'am') {
+                amBtn.classList.add('bg-[var(--color-primary-600)]', 'text-white');
+                amBtn.classList.remove('bg-white', 'text-slate-900');
+                pmBtn.classList.add('bg-white', 'text-slate-900');
+                pmBtn.classList.remove('bg-[var(--color-primary-600)]', 'text-white');
+            } else {
+                pmBtn.classList.add('bg-[var(--color-primary-600)]', 'text-white');
+                pmBtn.classList.remove('bg-white', 'text-slate-900');
+                amBtn.classList.add('bg-white', 'text-slate-900');
+                amBtn.classList.remove('bg-[var(--color-primary-600)]', 'text-white');
+            }
+            generateSchedule();
+            if (shouldSave) saveDailyLog();
+        }
+
+        function generateSchedule() {
+            const timeValue = wakeUpTimeInput.value;
+            const parts = timeValue.split(':');
+            if (parts.length !== 2) {
+                errorMessage.textContent = 'Please use H:MM format (e.g., 7:30).';
+                scheduleContainer.innerHTML = ''; return;
+            }
+            const inputHours = parseInt(parts[0], 10);
+            const inputMinutes = parseInt(parts[1], 10);
+            if (isNaN(inputHours) || isNaN(inputMinutes) || inputHours < 1 || inputHours > 12 || inputMinutes < 0 || inputMinutes > 59) {
+                errorMessage.textContent = 'Invalid time. Please use H:MM format.';
+                scheduleContainer.innerHTML = ''; return;
+            }
+            errorMessage.textContent = '';
+            scheduleContainer.innerHTML = '';
+
+            if (!scheduleStructure || scheduleStructure.length === 0) {
+                scheduleContainer.innerHTML = `<p class="text-slate-400 text-center italic p-4 bg-white rounded-lg shadow-md">Your schedule is empty. Click the edit icon to add time blocks!</p>`;
+                return;
+            }
+
+            const parseTime = (timeStr) => {
+                if(!timeStr) return null;
+                const now = new Date();
+                let [time, meridiem] = timeStr.toLowerCase().split(' ');
+                let [hours, minutes] = time.split(':').map(Number);
+                
+                if (isNaN(hours) || isNaN(minutes)) return null;
+
+                if (meridiem === 'pm' && hours < 12) hours += 12;
+                if (meridiem === 'am' && hours === 12) hours = 0;
+                
+                now.setHours(hours, minutes, 0, 0);
+                return now;
+            };
+
+            const frozenTasks = scheduleStructure.filter(t => t.isFrozen).map(t => ({
+                ...t,
+                start: parseTime(t.startTime),
+                end: parseTime(t.endTime)
+            })).filter(t => t.start && t.end && t.end > t.start);
+            
+            const flexibleTasks = JSON.parse(JSON.stringify(scheduleStructure.filter(t => !t.isFrozen)));
+            flexibleTasks.forEach(t => t.durationRemaining = t.duration);
+
+
+            frozenTasks.sort((a, b) => a.start - b.start);
+
+            let hours24 = (selectedMeridiem === 'pm' && inputHours !== 12) ? inputHours + 12 : (selectedMeridiem === 'am' && inputHours === 12) ? 0 : inputHours;
+            let timelineStart = new Date();
+            timelineStart.setHours(hours24, inputMinutes, 0, 0);
+
+            let timelineEnd = new Date(timelineStart);
+            timelineEnd.setDate(timelineEnd.getDate() + 1);
+
+            let availableSlots = [];
+            let lastEventEnd = new Date(timelineStart);
+
+            frozenTasks.forEach(frozenTask => {
+                if (frozenTask.start > lastEventEnd) {
+                    availableSlots.push({ start: new Date(lastEventEnd), end: new Date(frozenTask.start) });
+                }
+                if (frozenTask.end > lastEventEnd) {
+                    lastEventEnd = new Date(frozenTask.end);
+                }
+            });
+
+            if (lastEventEnd < timelineEnd) {
+                availableSlots.push({ start: new Date(lastEventEnd), end: new Date(timelineEnd) });
+            }
+
+            let finalSchedule = [...frozenTasks];
+            let partCounters = {};
+
+            for (const slot of availableSlots) {
+                let currentSlotTime = new Date(slot.start);
+                
+                while (flexibleTasks.length > 0 && currentSlotTime < slot.end) {
+                    const currentTask = flexibleTasks[0];
+                    
+                    if (!partCounters[currentTask.task]) {
+                        partCounters[currentTask.task] = 1;
+                    }
+
+                    const slotDuration = (slot.end - currentSlotTime) / 60000;
+                    
+                    if (currentTask.durationRemaining <= slotDuration) {
+                        const taskEnd = new Date(currentSlotTime);
+                        taskEnd.setMinutes(taskEnd.getMinutes() + currentTask.durationRemaining);
+                        
+                        let taskName = currentTask.task;
+                        if (partCounters[currentTask.task] > 1 || (currentTask.duration !== currentTask.durationRemaining)) {
+                            taskName += ` (Part ${partCounters[currentTask.task]})`;
+                        }
+
+                        finalSchedule.push({
+                            ...currentTask,
+                            task: taskName,
+                            start: new Date(currentSlotTime),
+                            end: taskEnd
+                        });
+                        
+                        currentSlotTime = taskEnd;
+                        flexibleTasks.shift();
+
+                    } else {
+                        const taskName = `${currentTask.task} (Part ${partCounters[currentTask.task]})`;
+
+                        finalSchedule.push({
+                            ...currentTask,
+                            task: taskName,
+                            start: new Date(currentSlotTime),
+                            end: new Date(slot.end)
+                        });
+                        
+                        currentTask.durationRemaining -= slotDuration;
+                        partCounters[currentTask.task]++;
+                        
+                        break; 
+                    }
+                }
+            }
+            
+            finalSchedule.sort((a, b) => a.start - b.start);
+            const template = document.getElementById('schedule-item-template');
+
+            finalSchedule.forEach((item, taskIndex) => {
+                const clone = template.content.cloneNode(true);
+                const scheduleItem = clone.querySelector('.time-slot');
+
+                scheduleItem.dataset.startTime = item.start.getTime();
+                scheduleItem.dataset.endTime = item.end.getTime();
+                scheduleItem.style.animationDelay = `${taskIndex * 50}ms`;
+
+                if (item.isFrozen) {
+                    scheduleItem.classList.add('border-l-4', 'border-blue-400');
+                    const frozenIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500 inline-block mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>`;
+                    clone.querySelector('.task-title').innerHTML = frozenIcon + item.task;
+                } else {
+                    clone.querySelector('.task-title').textContent = item.task;
+                }
+                
+                clone.querySelector('.start-time').textContent = formatTimeForSchedule(item.start);
+                clone.querySelector('.end-time').textContent = formatTimeForSchedule(item.end);
+                
+                const notesEl = clone.querySelector('.task-notes');
+                if (item.notes) {
+                    notesEl.textContent = item.notes;
+                } else {
+                    notesEl.remove();
+                }
+
+                scheduleContainer.appendChild(clone);
+            });
+
+            updateCurrentTaskHighlight();
+        }
+        
+        // --- MODAL & LOGIC ---
+        function toggleFreezeInputs(row, isFrozen) {
+            const durationInput = row.querySelector('.task-duration-input');
+            const freezeTimeInputs = row.querySelector('.freeze-time-inputs');
+            if (isFrozen) {
+                durationInput.classList.add('hidden');
+                freezeTimeInputs.classList.remove('hidden');
+                freezeTimeInputs.classList.add('flex');
+            } else {
+                durationInput.classList.remove('hidden');
+                freezeTimeInputs.classList.add('hidden');
+                freezeTimeInputs.classList.remove('flex');
+            }
+        }
+
+        function createEditRow(taskItem = { task: '', duration: 60, notes: '', isFrozen: false, startTime: '', endTime: '' }) {
+            const row = document.createElement('div');
+            row.className = 'edit-task-row p-4 rounded-lg bg-slate-100 border border-slate-200 space-y-2';
+            const durationInHours = (taskItem.duration / 60).toFixed(2);
+            
+            const isFrozen = taskItem.isFrozen || false;
+
+            row.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <input type="text" value="${taskItem.task}" placeholder="Task Description" class="task-title-input flex-grow p-2 bg-white border border-slate-300 rounded-md font-semibold">
+                    
+                    <input type="number" value="${durationInHours}" step="0.1" min="0" placeholder="Hours" class="task-duration-input w-24 p-2 bg-white border border-slate-300 rounded-md ${isFrozen ? 'hidden' : ''}">
+                    
+                    <div class="freeze-time-inputs items-center gap-1 ${isFrozen ? 'flex' : 'hidden'}">
+                        <input type="text" value="${taskItem.startTime || ''}" class="task-start-time-input w-24 p-2 text-center bg-white border border-slate-300 rounded-md" placeholder="e.g., 9:00 am">
+                        <span class="text-slate-500">-</span>
+                        <input type="text" value="${taskItem.endTime || ''}" class="task-end-time-input w-24 p-2 text-center bg-white border border-slate-300 rounded-md" placeholder="e.g., 5:00 pm">
+                    </div>
+
+                    <div class="flex items-center">
+                        <button class="move-up-btn p-2 text-slate-500 hover:bg-slate-200 rounded-full transition" title="Move Up">
+                            <svg class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+                        </button>
+                        <button class="move-down-btn p-2 text-slate-500 hover:bg-slate-200 rounded-full transition" title="Move Down">
+                            <svg class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <button class="remove-task-btn p-2 text-red-500 hover:bg-red-100 rounded-full transition" title="Delete Task">
+                            <svg class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <input type="text" value="${taskItem.notes || ''}" placeholder="Add a note... (optional)" class="task-notes-input w-full p-2 bg-white border border-slate-300 rounded-md text-sm">
+                    <label class="flex items-center gap-2 ml-4 cursor-pointer text-sm font-medium text-slate-600 whitespace-nowrap">
+                        <input type="checkbox" class="task-freeze-checkbox h-4 w-4 rounded border-gray-300 text-[var(--color-primary-600)] focus:ring-[var(--color-primary-600)]" ${isFrozen ? 'checked' : ''}>
+                        Freeze
+                    </label>
+                </div>`;
+            
+            const freezeCheckbox = row.querySelector('.task-freeze-checkbox');
+            freezeCheckbox.addEventListener('change', (e) => {
+                toggleFreezeInputs(row, e.target.checked);
+            });
+
+            editFormContainer.appendChild(row);
+        }
+        
+        function populateEditForm() {
+            editFormContainer.innerHTML = '';
+            scheduleStructure.forEach(createEditRow);
+        }
+
+        function getScheduleFromForm() {
+            const newSchedule = [];
+            editFormContainer.querySelectorAll('.edit-task-row').forEach(row => {
+                const task = row.querySelector('.task-title-input').value.trim();
+                const notes = row.querySelector('.task-notes-input').value.trim();
+                const isFrozen = row.querySelector('.task-freeze-checkbox').checked;
+
+                if (task) {
+                    let taskData = { task, notes, isFrozen };
+
+                    if (isFrozen) {
+                        taskData.startTime = row.querySelector('.task-start-time-input').value.trim();
+                        taskData.endTime = row.querySelector('.task-end-time-input').value.trim();
+                        taskData.duration = 0;
+                    } else {
+                        const durationInHours = parseFloat(row.querySelector('.task-duration-input').value) || 0;
+                        taskData.duration = Math.round(durationInHours * 60);
+                        taskData.startTime = '';
+                        taskData.endTime = '';
+                    }
+                    newSchedule.push(taskData);
+                }
+            });
+            return newSchedule;
+        }
+
+        function saveScheduleChanges() {
+            scheduleStructure = getScheduleFromForm();
+            appData.scheduleStructure = scheduleStructure;
+            saveAppData();
+            closeModal('edit');
+            generateSchedule();
+        }
+        
+        function deleteLogEntry(date) {
+            if (appData.dailyLogs && appData.dailyLogs[date]) {
+                delete appData.dailyLogs[date];
+                saveAppData();
+                populateLogbook();
+            }
+        }
+        
+        function populateLogbook() {
+            logbookContainer.innerHTML = '';
+            const logDates = Object.keys(appData.dailyLogs || {}).sort().reverse();
+            if (logDates.length === 0) {
+                logbookContainer.innerHTML = `<p class="text-slate-500 text-center italic">No saved logs yet.</p>`;
+                return;
+            }
+            logDates.forEach(date => {
+                const log = appData.dailyLogs[date];
+                const logEntry = document.createElement('div');
+                logEntry.className = 'p-4 rounded-lg bg-slate-50 border border-slate-200';
+                let todosHtml = '<p class="text-slate-400 italic mt-2">No tasks logged.</p>';
+                if (log.todos && log.todos.length > 0) {
+                    todosHtml = log.todos.map(todo => `
+                        <div class="flex items-center gap-2">
+                           <span class="text-[var(--color-primary-600)] font-bold text-lg">${todo.completed ? '✓' : '○'}</span>
+                           <span class="${todo.completed ? 'line-through text-slate-400' : ''}">${todo.text}</span>
+                        </div>`).join('');
+                }
+                
+                let weeklyGoalsHtml = '';
+                if (log.weeklyGoals && log.weeklyGoals.length > 0) {
+                    const goalsList = log.weeklyGoals.map(goal => `
+                        <div class="flex items-center gap-2 text-sm">
+                           <span class="text-[var(--color-primary-600)] font-bold">${goal.completed ? '✓' : '○'}</span>
+                           <span class="${goal.completed ? 'line-through text-slate-400' : ''}">${goal.text}</span>
+                        </div>
+                    `).join('');
+                    weeklyGoalsHtml = `<div class="mt-4">
+                                           <h4 class="font-semibold text-slate-700">Weekly Goals Progress</h4>
+                                           <div class="space-y-1 mt-1">${goalsList}</div>
+                                       </div>`;
+                }
+
+                let habitsHtml = '';
+                if (log.habits && log.habits.length > 0) {
+                    const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                    const habitsList = log.habits.map(habit => {
+                        const daysCompleted = habit.completed.map((done, index) => 
+                            `<span class="text-xs w-5 text-center p-1 rounded ${done ? 'bg-[var(--color-primary-600)] text-white font-bold' : 'bg-slate-200 text-slate-500'}">${dayLabels[index]}</span>`
+                        ).join('');
+                        return `
+                            <div class="text-sm mt-1">
+                                <p class="text-slate-600">${habit.text}</p>
+                                <div class="flex gap-1 mt-1">${daysCompleted}</div>
+                            </div>
+                        `;
+                    }).join('');
+                     habitsHtml = `<div class="mt-4">
+                                           <h4 class="font-semibold text-slate-700">Habit Progress</h4>
+                                           <div class="space-y-2 mt-1">${habitsList}</div>
+                                       </div>`;
+                }
+
+                let salahsHtml = '';
+                if (log.salahs) {
+                    const salahsList = salahNames.map(name => {
+                        const nameLower = name.toLowerCase();
+                        return `<div class="flex items-center gap-2 text-sm">
+                                    <span class="text-[var(--color-primary-600)] font-bold">${log.salahs[nameLower] ? '✓' : '○'}</span>
+                                    <span class="${log.salahs[nameLower] ? 'text-slate-600' : 'text-slate-400'}">${name}</span>
+                                </div>`
+                    }).join('');
+                    salahsHtml = `<div class="mt-4">
+                                      <h4 class="font-semibold text-slate-700">Salah Tracker</h4>
+                                      <div class="grid grid-cols-2 sm:grid-cols-3 gap-1 mt-1">${salahsList}</div>
+                                   </div>`;
+                }
+                const focusTimeHtml = log.focusTime ? `<p class="text-sm text-slate-500">Focus Time: <span class="font-medium text-slate-600">${Math.round(log.focusTime / 60)} minutes</span></p>` : '';
+
+                logEntry.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-bold text-lg">${new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                            <p class="text-sm text-slate-500 mb-2">Woke up at: <span class="font-medium text-slate-600">${log.wakeUp}</span></p>
+                            ${focusTimeHtml}
+                        </div>
+                        <div class="flex items-center">
+                            <button data-date="${date}" class="edit-log-btn p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-100 rounded-full transition" title="Edit this log">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                    <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <button data-date="${date}" class="delete-log-btn p-2 text-slate-400 hover:text-red-500 hover:bg-red-100 rounded-full transition" title="Delete this log">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-1 mt-2">${todosHtml}</div>
+                    ${salahsHtml}
+                    ${weeklyGoalsHtml}
+                    ${habitsHtml}`;
+                logbookContainer.appendChild(logEntry);
+            });
+        }
+
+        function openModal(type) { 
+            if (type === 'edit') { 
+                populateEditForm();
+                populateTemplateDropdown();
+                editModal.classList.remove('hidden'); 
+            } 
+            else if (type === 'logbook') { 
+                populateLogbook(); 
+                logbookModal.classList.remove('hidden'); 
+            }
+        }
+        function closeModal(type) { 
+            if (type === 'edit') { editModal.classList.add('hidden'); }
+            else if (type === 'logbook') { logbookModal.classList.add('hidden'); }
+        }
+        
+        function resetScheduleForm() {
+            editFormContainer.innerHTML = '';
+        }
+
+        function resetTodoList() {
+            todoList = [];
+            renderTodoList();
+        }
+
+        function resetSalahTracker() {
+            salahTracker = { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false };
+            renderSalahTracker();
+            saveDailyLog();
+        }
+        
+        function resetWeeklyGoals() {
+            weeklyGoals = [];
+            appData.weeklyGoals = [];
+            saveAppData();
+            renderWeeklyGoals();
+        }
+
+        function resetHabits() {
+            habits.forEach(habit => {
+                habit.completed = [false, false, false, false, false, false, false];
+            });
+            saveAppData();
+            renderHabitTracker();
+        }
+
+        function handleGeolocation() {
+            if ('geolocation' in navigator) {
+                locationDisplay.textContent = 'Location: Fetching...';
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        const { latitude, longitude } = position.coords;
+                        appData.location = { type: 'coords', latitude, longitude };
+                        saveAppData();
+                        await fetchPrayerTimes();
+                        renderSalahTracker();
+                    },
+                    (error) => {
+                        console.error('Geolocation error:', error);
+                        let displayMessage;
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED: displayMessage = "Access denied."; break;
+                            case error.POSITION_UNAVAILABLE: displayMessage = "Information is unavailable."; break;
+                            case error.TIMEOUT: displayMessage = "Request timed out."; break;
+                            default: displayMessage = "Error getting location."; break;
+                        }
+                        locationDisplay.textContent = `Location: ${displayMessage}`;
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser.');
+            }
+        }
+        
+        function playReminderSound() {
+            if (Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+            const synth = new Tone.Synth().toDestination();
+            synth.triggerAttackRelease("C4", "8n");
+        }
+
+        function startReminderChecker() {
+            let lastCheckedDate = getTodayDateString();
+
+            setInterval(() => {
+                const today = getTodayDateString();
+                if (today !== lastCheckedDate) {
+                    remindersPlayedToday = {};
+                    lastCheckedDate = today;
+                }
+
+                if (!appData.soundEnabled || Object.keys(prayerTimes).length === 0) {
+                    return;
+                }
+
+                const now = new Date();
+                const currentTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                
+                salahNames.forEach(name => {
+                    if (prayerTimes[name] === currentTimeString && !remindersPlayedToday[name]) {
+                        playReminderSound();
+                        showSalahNotification(name);
+                        remindersPlayedToday[name] = true;
+                    }
+                });
+
+            }, 30000); // Check every 30 seconds
+        }
+
+        // --- Timer Functions ---
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
+        
+        function showTimerNotification() {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Focus Timer Finished!', {
+                    body: 'Great job! Time to take a break. ✨',
+                    icon: 'https://img.icons8.com/fluency/96/alarm-clock.png'
+                });
+            }
+        }
+
+        function showSalahNotification(salahName) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(`It's time for ${salahName} prayer!`, {
+                    body: 'May your prayers be accepted. 🙏',
+                    icon: 'https://img.icons8.com/color/96/mosque.png' 
+                });
+            }
+        }
+
+        function updateTimerDisplay() {
+            timerDisplay.value = formatTimeForTimer(timeLeft);
+        }
+
+        function updateTotalFocusDisplay() {
+            const minutes = Math.round(totalFocusTimeToday / 60);
+            totalFocusTimeDisplay.textContent = `${minutes}m`;
+        }
+        
+        function toggleTimer() {
+            if (isTimerRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            requestNotificationPermission();
+            isTimerRunning = true;
+            timerDisplay.disabled = true;
+            startPauseBtn.textContent = 'Pause';
+            startPauseBtn.classList.replace('bg-[var(--color-primary-600)]', 'bg-amber-500');
+            startPauseBtn.classList.replace('hover:bg-[var(--color-primary-700)]', 'hover:bg-amber-600');
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                totalFocusTimeToday++;
+                updateTimerDisplay();
+                updateTotalFocusDisplay();
+
+                if (timeLeft <= 0) {
+                    pauseTimer();
+                    playReminderSound();
+                    showTimerNotification();
+                    timeLeft = 0;
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            isTimerRunning = false;
+            timerDisplay.disabled = false;
+            startPauseBtn.textContent = 'Start';
+            startPauseBtn.classList.replace('bg-amber-500', 'bg-[var(--color-primary-600)]');
+            startPauseBtn.classList.replace('hover:bg-amber-600', 'hover:bg-[var(--color-primary-700)]');
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timeLeft = 1500; // Reset to 25 minutes
+            updateTimerDisplay();
+        }
+
+        function updateTimerFromInput(e) {
+            if (isTimerRunning) return;
+            const parts = e.target.value.split(':');
+            if (parts.length === 2) {
+                const minutes = parseInt(parts[0], 10);
+                const seconds = parseInt(parts[1], 10);
+                if (!isNaN(minutes) && !isNaN(seconds)) {
+                    timeLeft = (minutes * 60) + seconds;
+                }
+            }
+        }
+
+        function showManualFocusInput() {
+            focusDisplayWrapper.classList.add('hidden');
+            addFocusTimeWrapper.classList.remove('hidden');
+            addFocusTimeWrapper.classList.add('flex');
+            manualFocusInput.focus();
+        }
+        
+        function hideManualFocusInput() {
+            addFocusTimeWrapper.classList.add('hidden');
+            addFocusTimeWrapper.classList.remove('flex');
+            focusDisplayWrapper.classList.remove('hidden');
+            manualFocusInput.value = '';
+        }
+
+        function confirmManualFocusTime() {
+            const minutesToAdd = manualFocusInput.value;
+            const minutes = parseInt(minutesToAdd, 10);
+            if (!isNaN(minutes) && minutes > 0) {
+                totalFocusTimeToday += minutes * 60; 
+                updateTotalFocusDisplay();
+                saveDailyLog();
+            }
+            hideManualFocusInput();
+        }
+
+        // --- Template Functions ---
+        function populateTemplateDropdown() {
+            templateSelect.innerHTML = '<option value="">-- Select a template --</option>';
+            for (const name in appData.scheduleTemplates) {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                templateSelect.appendChild(option);
+            }
+        }
+
+        function saveAsTemplate() {
+            const name = templateNameInput.value.trim();
+            if (!name) {
+                alert('Please enter a name for the template.');
+                return;
+            }
+
+            const currentSchedule = getScheduleFromForm();
+            if (!appData.scheduleTemplates) appData.scheduleTemplates = {};
+            appData.scheduleTemplates[name] = currentSchedule;
+            saveAppData();
+            populateTemplateDropdown();
+            templateNameInput.value = '';
+            templateSelect.value = name;
+            alert(`Template "${name}" saved!`);
+        }
+
+        function loadTemplate() {
+            const name = templateSelect.value;
+            if (!name || !appData.scheduleTemplates) {
+                alert('Please select a template to load.');
+                return;
+            }
+
+            const templateSchedule = appData.scheduleTemplates[name];
+            editFormContainer.innerHTML = '';
+            templateSchedule.forEach(createEditRow);
+        }
+
+        function deleteTemplate() {
+            const name = templateSelect.value;
+            if (!name) {
+                alert('Please select a template to delete.');
+                return;
+            }
+            if (!appData.scheduleTemplates) return;
+
+            delete appData.scheduleTemplates[name];
+            saveAppData();
+            populateTemplateDropdown();
+            alert(`Template "${name}" deleted.`);
+        }
+
+        function applyTheme(themeName) {
+            document.documentElement.setAttribute('data-theme', themeName);
+            appData.theme = themeName;
+            saveAppData();
+            
+            themeSelector.querySelectorAll('button').forEach(btn => {
+                if (btn.dataset.theme === themeName) {
+                    btn.classList.add('ring-2', 'ring-offset-1', 'ring-slate-400');
+                } else {
+                    btn.classList.remove('ring-2', 'ring-offset-1', 'ring-slate-400');
+                }
+            });
+        }
+
+        // --- EVENT LISTENERS ---
+        function handleAddTodo() {
+            const text = todoInput.value.trim();
+            if (text) {
+                todoList.push({ text: text, completed: false });
+                renderTodoList(); 
+                todoInput.value = ''; 
+                todoInput.focus();
+            }
+        }
+
+        function handleAddWeeklyGoal() {
+            const text = weeklyGoalInput.value.trim();
+            if (text) {
+                weeklyGoals.push({ text: text, completed: false });
+                appData.weeklyGoals = weeklyGoals;
+                saveAppData();
+                renderWeeklyGoals();
+                weeklyGoalInput.value = '';
+                weeklyGoalInput.focus();
+            }
+        }
+
+        function handleAddHabit() {
+            const text = habitInput.value.trim();
+            if (text) {
+                habits.push({ text: text, completed: [false, false, false, false, false, false, false] });
+                saveAppData();
+                renderHabitTracker();
+                habitInput.value = '';
+                habitInput.focus();
+            }
+        }
+        
+        addTodoBtn.addEventListener('click', handleAddTodo);
+        todoInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAddTodo(); });
+
+        addWeeklyGoalBtn.addEventListener('click', handleAddWeeklyGoal);
+        weeklyGoalInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAddWeeklyGoal(); });
+        
+        addHabitBtn.addEventListener('click', handleAddHabit);
+        habitInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleAddHabit(); });
+
+        wakeUpTimeInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '');
+            
+            if (value.length > 4) value = value.slice(0, 4);
+
+            if (value.length > 2) {
+                value = value.slice(0, -2) + ':' + value.slice(-2);
+            }
+            
+            e.target.value = value;
+            generateSchedule();
+        });
+        
+        wakeUpTimeInput.addEventListener('blur', saveDailyLog);
+
+        function handleChecklistClick(e, list, renderFn, saveFn) {
+            const target = e.target;
+            
+            if (target.type === 'checkbox') {
+                const index = parseInt(target.dataset.index, 10);
+                if (!isNaN(index) && list[index]) {
+                    list[index].completed = target.checked;
+                    if(saveFn) saveFn();
+                }
+            }
+
+            const deleteBtn = target.closest('.delete-btn');
+            if (deleteBtn) {
+                const indexToDelete = parseInt(deleteBtn.dataset.index, 10);
+                if (!isNaN(indexToDelete)) {
+                    const itemElement = deleteBtn.parentElement;
+                    itemElement.classList.add('fade-out');
+                    setTimeout(() => {
+                        list.splice(indexToDelete, 1);
+                        renderFn();
+                        if(saveFn) saveFn();
+                    }, 300);
+                }
+            }
+        }
+        
+        todoListContainer.addEventListener('click', (e) => handleChecklistClick(e, todoList, renderTodoList, null));
+        weeklyGoalsContainer.addEventListener('click', (e) => handleChecklistClick(e, weeklyGoals, renderWeeklyGoals, saveAppData));
+        
+        habitsContainer.addEventListener('click', (e) => {
+            const target = e.target;
+            if (target.matches('.habit-checkbox')) {
+                const habitIndex = parseInt(target.dataset.habitIndex, 10);
+                const dayIndex = parseInt(target.dataset.dayIndex, 10);
+                if (!isNaN(habitIndex) && !isNaN(dayIndex) && habits[habitIndex]) {
+                    habits[habitIndex].completed[dayIndex] = target.checked;
+                    saveAppData();
+                    renderHabitTracker();
+                }
+            }
+
+            const deleteBtn = target.closest('.delete-habit-btn');
+            if (deleteBtn) {
+                const indexToDelete = parseInt(deleteBtn.dataset.index, 10);
+                if (!isNaN(indexToDelete)) {
+                     const itemElement = deleteBtn.closest('.fade-in');
+                    itemElement.classList.add('fade-out');
+                    setTimeout(() => {
+                        habits.splice(indexToDelete, 1);
+                        saveAppData();
+                        renderHabitTracker();
+                    }, 300);
+                }
+            }
+        });
+        
+        salahTrackerContainer.addEventListener('change', (e) => {
+            const salahName = e.target.dataset.salah;
+            if (salahName) {
+                salahTracker[salahName] = e.target.checked;
+                saveDailyLog();
+            }
+        });
+
+        amBtn.addEventListener('click', () => updateMeridiemSelection('am'));
+        pmBtn.addEventListener('click', () => updateMeridiemSelection('pm'));
+        
+        editScheduleBtn.addEventListener('click', () => openModal('edit'));
+        closeModalBtn.addEventListener('click', () => closeModal('edit'));
+        cancelBtn.addEventListener('click', () => closeModal('edit'));
+        saveBtn.addEventListener('click', saveScheduleChanges);
+        addTaskBtn.addEventListener('click', () => createEditRow());
+        resetBtn.addEventListener('click', resetScheduleForm);
+
+        editFormContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+
+            const row = button.closest('.edit-task-row');
+            if (!row) return;
+
+            if (button.classList.contains('remove-task-btn')) {
+                row.remove();
+            } else if (button.classList.contains('move-up-btn')) {
+                const prevRow = row.previousElementSibling;
+                if (prevRow) {
+                    row.parentElement.insertBefore(row, prevRow);
+                }
+            } else if (button.classList.contains('move-down-btn')) {
+                const nextRow = row.nextElementSibling;
+                if (nextRow) {
+                    row.parentElement.insertBefore(nextRow, row);
+                }
+            }
+        });
+
+        logbookContainer.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.edit-log-btn');
+            if (editBtn) {
+                const dateToEdit = editBtn.dataset.date;
+                if (dateToEdit) {
+                    populateEditLogForm(dateToEdit);
+                    editLogModal.classList.remove('hidden');
+                }
+                return; 
+            }
+            
+            const deleteBtn = e.target.closest('.delete-log-btn');
+            if (deleteBtn) {
+                const dateToDelete = deleteBtn.dataset.date;
+                if (dateToDelete) { 
+                    deleteLogEntry(dateToDelete);
+                }
+            }
+        });
+
+        closeEditLogBtn.addEventListener('click', () => editLogModal.classList.add('hidden'));
+        cancelEditLogBtn.addEventListener('click', () => editLogModal.classList.add('hidden'));
+        saveEditLogBtn.addEventListener('click', () => {
+            const date = saveEditLogBtn.dataset.date;
+            if (date) saveLogChanges(date);
+        });
+
+        logbookBtn.addEventListener('click', () => openModal('logbook'));
+        closeLogbookBtn.addEventListener('click', () => closeModal('logbook'));
+
+        headerSaveBtn.addEventListener('click', saveDailyLog);
+        resetTodoBtn.addEventListener('click', resetTodoList);
+        resetSalahBtn.addEventListener('click', resetSalahTracker);
+        resetWeeklyGoalsBtn.addEventListener('click', resetWeeklyGoals);
+        resetHabitsBtn.addEventListener('click', resetHabits);
+        locateMeBtn.addEventListener('click', handleGeolocation);
+        
+        reminderToggle.addEventListener('change', (e) => {
+            appData.soundEnabled = e.target.checked;
+            saveAppData();
+            if (appData.soundEnabled) {
+                if (Tone.context.state !== 'running') {
+                    Tone.context.resume();
+                }
+            }
+        });
+
+        exportDataBtn.addEventListener('click', exportData);
+        importDataInput.addEventListener('change', importData);
+
+        saveTemplateBtn.addEventListener('click', saveAsTemplate);
+        loadTemplateBtn.addEventListener('click', loadTemplate);
+        deleteTemplateBtn.addEventListener('click', deleteTemplate);
+
+        startPauseBtn.addEventListener('click', toggleTimer);
+        resetTimerBtn.addEventListener('click', resetTimer);
+        timerDisplay.addEventListener('change', updateTimerFromInput);
+        addFocusTimeBtn.addEventListener('click', showManualFocusInput);
+        cancelAddFocusBtn.addEventListener('click', hideManualFocusInput);
+        confirmAddFocusBtn.addEventListener('click', confirmManualFocusTime);
+
+        themeSelector.addEventListener('click', (e) => {
+            if (e.target.matches('button')) {
+                applyTheme(e.target.dataset.theme);
+            }
+        });
+
+        navButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const targetPageId = e.target.dataset.page;
+                pages.forEach(page => page.classList.add('hidden'));
+                document.getElementById(targetPageId).classList.remove('hidden');
+                navButtons.forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+            });
+        });
+
+        // --- Edit Log Modal Functions ---
+        function populateEditLogForm(date) {
+            editLogContainer.innerHTML = '';
+            const log = appData.dailyLogs[date];
+            if (!log) return;
+
+            saveEditLogBtn.dataset.date = date;
+
+            // Wake up time
+            const wakeUpParts = log.wakeUp.split(' ');
+            const wakeUpTime = wakeUpParts[0];
+            const wakeUpMeridiem = wakeUpParts[1].toLowerCase();
+
+            let wakeUpHtml = `
+                <div>
+                    <h4 class="font-semibold mb-2">Wake Up Time</h4>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="edit-log-wake-up-time" value="${wakeUpTime}" class="w-24 text-center p-2 bg-white border border-slate-300 rounded-md">
+                        <select id="edit-log-wake-up-meridiem" class="p-2 bg-white border border-slate-300 rounded-md">
+                            <option value="am" ${wakeUpMeridiem === 'am' ? 'selected' : ''}>AM</option>
+                            <option value="pm" ${wakeUpMeridiem === 'pm' ? 'selected' : ''}>PM</option>
+                        </select>
+                    </div>
+                </div>`;
+
+
+            // To-Do List
+            let todosHtml = '<div><h4 class="font-semibold mb-2">To-Do List</h4><div id="edit-log-todos-list" class="space-y-2">';
+            if (log.todos && log.todos.length > 0) {
+                log.todos.forEach((todo, index) => {
+                    todosHtml += `
+                        <div class="checklist-item flex items-center gap-3 bg-slate-100 p-2 rounded-md">
+                            <input type="checkbox" id="edit-todo-${date}-${index}" data-index="${index}" class="edit-log-todo-checkbox h-5 w-5" ${todo.completed ? 'checked' : ''}>
+                            <label for="edit-todo-${date}-${index}" class="text-slate-700 flex-grow">${todo.text}</label>
+                        </div>`;
+                });
+            } else {
+                todosHtml += `<p class="text-slate-400 italic">No tasks logged.</p>`;
+            }
+            todosHtml += `</div>
+                <div class="flex gap-2 mt-4">
+                    <input type="text" id="edit-log-new-todo-input" placeholder="Add a new task..." class="flex-grow px-3 py-2 bg-white border border-slate-300 rounded-md">
+                    <button type="button" id="edit-log-add-todo-btn" class="bg-[var(--color-primary-600)] text-white p-2 rounded-md hover:bg-[var(--color-primary-700)]">Add</button>
+                </div>
+            </div>`;
+
+            // Weekly Goals
+            let weeklyGoalsHtml = '<div><h4 class="font-semibold mb-2">Weekly Goals</h4><div id="edit-log-goals-list" class="space-y-2">';
+            if (log.weeklyGoals && log.weeklyGoals.length > 0) {
+                log.weeklyGoals.forEach((goal, index) => {
+                     weeklyGoalsHtml += `
+                        <div class="checklist-item flex items-center gap-3 bg-slate-100 p-2 rounded-md">
+                            <input type="checkbox" id="edit-goal-${date}-${index}" data-index="${index}" class="edit-log-goal-checkbox h-5 w-5" ${goal.completed ? 'checked' : ''}>
+                            <label for="edit-goal-${date}-${index}" class="text-slate-700 flex-grow">${goal.text}</label>
+                        </div>`;
+                });
+            } else {
+                 weeklyGoalsHtml += `<p class="text-slate-400 italic">No weekly goals logged.</p>`;
+            }
+             weeklyGoalsHtml += `</div>
+                <div class="flex gap-2 mt-4">
+                    <input type="text" id="edit-log-new-goal-input" placeholder="Add a new goal..." class="flex-grow px-3 py-2 bg-white border border-slate-300 rounded-md">
+                    <button type="button" id="edit-log-add-goal-btn" class="bg-[var(--color-primary-600)] text-white p-2 rounded-md hover:bg-[var(--color-primary-700)]">Add</button>
+                </div>
+            </div>`;
+
+
+            // Salah Tracker
+            let salahsHtml = '<div><h4 class="font-semibold mb-2">Salah Tracker</h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">';
+            if (log.salahs) {
+                 salahNames.forEach(name => {
+                    const nameLower = name.toLowerCase();
+                    salahsHtml += `
+                        <div class="checklist-item flex items-center gap-3 bg-slate-100 p-2 rounded-md">
+                            <input type="checkbox" id="edit-salah-${date}-${nameLower}" data-salah="${nameLower}" class="edit-log-salah-checkbox h-5 w-5" ${log.salahs[nameLower] ? 'checked' : ''}>
+                            <label for="edit-salah-${date}-${nameLower}">${name}</label>
+                        </div>`;
+                });
+            }
+            salahsHtml += '</div></div>';
+
+             // Habit Tracker
+            let habitsHtml = '<div><h4 class="font-semibold mb-2">Habit Tracker</h4><div id="edit-log-habits-list" class="space-y-2">';
+            if (log.habits && log.habits.length > 0) {
+                const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                log.habits.forEach((habit, habitIndex) => {
+                     let checkboxesHtml = dayLabels.map((day, dayIndex) => {
+                        const isChecked = habit.completed[dayIndex];
+                        return `
+                            <label class="flex flex-col items-center cursor-pointer">
+                                <span class="text-xs mb-1">${day}</span>
+                                <input type="checkbox" data-habit-index="${habitIndex}" data-day-index="${dayIndex}" class="edit-log-habit-checkbox h-5 w-5" ${isChecked ? 'checked' : ''}>
+                            </label>
+                        `;
+                    }).join('');
+                    habitsHtml += `
+                        <div class="bg-slate-100 p-3 rounded-lg">
+                            <p class="font-semibold text-slate-800 mb-2">${habit.text}</p>
+                            <div class="flex justify-around gap-1">${checkboxesHtml}</div>
+                        </div>
+                    `;
+                });
+            } else {
+                habitsHtml += `<p class="text-slate-400 italic">No habits logged.</p>`;
+            }
+            habitsHtml += '</div></div>';
+            
+            editLogContainer.innerHTML = wakeUpHtml + todosHtml + weeklyGoalsHtml + salahsHtml + habitsHtml;
+        }
+
+        editLogContainer.addEventListener('click', (e) => {
+            if (e.target.id === 'edit-log-add-todo-btn') {
+                const date = saveEditLogBtn.dataset.date;
+                const input = document.getElementById('edit-log-new-todo-input');
+                const text = input.value.trim();
+                if (text && date) {
+                    if (!appData.dailyLogs[date].todos) appData.dailyLogs[date].todos = [];
+                    appData.dailyLogs[date].todos.push({ text: text, completed: false });
+                    input.value = '';
+                    populateEditLogForm(date); // Refresh the modal content
+                }
+            } else if (e.target.id === 'edit-log-add-goal-btn') {
+                 const date = saveEditLogBtn.dataset.date;
+                const input = document.getElementById('edit-log-new-goal-input');
+                const text = input.value.trim();
+                if (text && date) {
+                    if (!appData.dailyLogs[date].weeklyGoals) appData.dailyLogs[date].weeklyGoals = [];
+                    appData.dailyLogs[date].weeklyGoals.push({ text: text, completed: false });
+                    input.value = '';
+                    populateEditLogForm(date); // Refresh the modal content
+                }
+            }
+        });
+
+        function saveLogChanges(date) {
+            const log = appData.dailyLogs[date];
+            if (!log) return;
+            
+            // Update Wake up time
+            const newTime = document.getElementById('edit-log-wake-up-time').value.trim();
+            const newMeridiem = document.getElementById('edit-log-wake-up-meridiem').value;
+            log.wakeUp = `${newTime} ${newMeridiem.toUpperCase()}`;
+
+            // Update Todos (already handled by populateEditLogForm on add)
+            const todoCheckboxes = editLogContainer.querySelectorAll('.edit-log-todo-checkbox');
+            todoCheckboxes.forEach(checkbox => {
+                const index = parseInt(checkbox.dataset.index, 10);
+                if(log.todos && log.todos[index]) {
+                    log.todos[index].completed = checkbox.checked;
+                }
+            });
+
+             // Update Weekly Goals (already handled by populateEditLogForm on add)
+            const goalCheckboxes = editLogContainer.querySelectorAll('.edit-log-goal-checkbox');
+            goalCheckboxes.forEach(checkbox => {
+                const index = parseInt(checkbox.dataset.index, 10);
+                if(log.weeklyGoals && log.weeklyGoals[index]) {
+                    log.weeklyGoals[index].completed = checkbox.checked;
+                }
+            });
+
+            // Update Salahs
+            const salahCheckboxes = editLogContainer.querySelectorAll('.edit-log-salah-checkbox');
+            salahCheckboxes.forEach(checkbox => {
+                const salahName = checkbox.dataset.salah;
+                if(log.salahs && log.salahs.hasOwnProperty(salahName)) {
+                     log.salahs[salahName] = checkbox.checked;
+                }
+            });
+
+            // Update Habits
+            const habitCheckboxes = editLogContainer.querySelectorAll('.edit-log-habit-checkbox');
+            habitCheckboxes.forEach(checkbox => {
+                const habitIndex = parseInt(checkbox.dataset.habitIndex, 10);
+                const dayIndex = parseInt(checkbox.dataset.dayIndex, 10);
+                if(log.habits && log.habits[habitIndex]) {
+                     log.habits[habitIndex].completed[dayIndex] = checkbox.checked;
+                }
+            });
+
+            saveAppData();
+            editLogModal.classList.add('hidden');
+            populateLogbook(); // Refresh the logbook view
+        }
+
+
+        // --- Conditional Initialization ---
+        async function init() {
+            authModal.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            if(document.getElementById('logout-btn')) {
+                document.getElementById('logout-btn').style.display = 'none';
+            }
+            await loadAppData();
+            startReminderChecker();
+            setInterval(updateCurrentTaskHighlight, 60000);
+            requestNotificationPermission();
+        }
+
+        init();
+    });
+    </script>
+</body>
+</html>
+
