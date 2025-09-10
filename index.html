@@ -6,7 +6,6 @@
     <title>My Daily Planner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Gochi+Hand&display=swap" rel="stylesheet">
@@ -109,28 +108,11 @@
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 transition-colors duration-300">
-    
-    <!-- Auth Modal -->
-    <div id="auth-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-8">
-            <h2 class="text-3xl font-bold text-center text-slate-800 mb-6">Welcome Back!</h2>
-            <div id="auth-error-message" class="text-red-500 text-center mb-4 min-h-[40px]"></div>
-            <form id="auth-form" class="space-y-4">
-                <input type="email" id="auth-email" placeholder="Email Address" required class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] transition">
-                <input type="password" id="auth-password" placeholder="Password" required class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-md focus:ring-2 focus:ring-[var(--color-primary-600)] transition">
-                <div class="flex gap-4">
-                    <button type="button" id="login-btn" class="flex-1 py-2 px-5 bg-[var(--color-primary-600)] text-white font-semibold rounded-lg hover:bg-[var(--color-primary-700)] transition">Sign In</button>
-                    <button type="button" id="signup-btn" class="flex-1 py-2 px-5 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition">Sign Up</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <div id="app-container" class="container mx-auto px-4 py-8 md:py-12 max-w-6xl">
         <header class="text-center mb-8 relative">
             <h1 class="font-handwriting text-5xl md:text-6xl text-[var(--color-primary-600)]">My Daily Planner</h1>
             <p class="text-slate-500 mt-2">A holistic planner for your body, mind, and soul.</p>
-            <div id="user-display" class="absolute top-0 left-0 text-left text-sm"></div>
             <div class="absolute top-0 right-0 flex gap-1 items-center">
                  <button id="header-save-btn" class="p-2 text-slate-500 hover:text-[var(--color-primary-600)] transition" title="Save Today's Log">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
@@ -368,6 +350,7 @@
                         <label for="import-data-input" class="flex-1 text-center py-2 px-4 bg-blue-100 text-blue-800 font-semibold rounded-lg hover:bg-blue-200 transition cursor-pointer">Import Data</label>
                         <input type="file" id="import-data-input" class="hidden" accept=".json">
                     </div>
+                    <div id="data-management-message" class="text-center mt-2 h-5 text-sm"></div>
                 </div>
             </div>
 
@@ -429,17 +412,6 @@
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- DOM Elements ---
-        const authModal = document.getElementById('auth-modal');
-        const appContainer = document.getElementById('app-container');
-        const authForm = document.getElementById('auth-form');
-        const authEmailInput = document.getElementById('auth-email');
-        const authPasswordInput = document.getElementById('auth-password');
-        const loginBtn = document.getElementById('login-btn');
-        const signupBtn = document.getElementById('signup-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const userDisplay = document.getElementById('user-display');
-        const authErrorMessage = document.getElementById('auth-error-message');
-
         const wakeUpTimeInput = document.getElementById('wakeUpTime');
         const amBtn = document.getElementById('am-btn');
         const pmBtn = document.getElementById('pm-btn');
@@ -476,6 +448,7 @@
         
         const exportDataBtn = document.getElementById('export-data-btn');
         const importDataInput = document.getElementById('import-data-input');
+        const dataManagementMessage = document.getElementById('data-management-message');
 
         // Edit Log Modal Elements
         const editLogModal = document.getElementById('edit-log-modal');
@@ -568,7 +541,7 @@
 
         async function loadAppData() {
             const savedData = localStorage.getItem('schedulerApp');
-            appData = savedData ? JSON.parse(savedData) : {
+            const dataToLoad = savedData ? JSON.parse(savedData) : {
                 scheduleStructure: [],
                 lastWakeUp: { time: '7:30', meridiem: 'am' },
                 dailyLogs: {},
@@ -580,7 +553,12 @@
                 theme: 'default'
             };
             
-            // Populate state from appData
+            await populateStateAndRender(dataToLoad);
+        }
+        
+        async function populateStateAndRender(dataToLoad) {
+            appData = dataToLoad;
+            
             scheduleStructure = appData.scheduleStructure || [];
             wakeUpTimeInput.value = appData.lastWakeUp?.time || '7:30';
             updateMeridiemSelection(appData.lastWakeUp?.meridiem || 'am', false); 
@@ -641,24 +619,40 @@
                 headerSaveBtn.disabled = false;
             }, 2000);
         }
-
+        
         function exportData() {
-            // We'll export the entire appData object which is kept in sync
-            const dataStr = JSON.stringify(appData, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `my-planner-backup-${getTodayDateString()}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            dataManagementMessage.textContent = '';
+            dataManagementMessage.classList.remove('text-green-500', 'text-red-500');
+            try {
+                const dataStr = JSON.stringify(appData, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `my-planner-backup-${getTodayDateString()}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                dataManagementMessage.textContent = 'Data exported successfully!';
+                dataManagementMessage.classList.add('text-green-500');
+
+            } catch (error) {
+                dataManagementMessage.textContent = 'Failed to export data.';
+                dataManagementMessage.classList.add('text-red-500');
+                console.error('Export error:', error);
+            } finally {
+                 setTimeout(() => { dataManagementMessage.textContent = '' }, 4000);
+            }
         }
 
         function importData(event) {
             const file = event.target.files[0];
             if (!file) return;
+            
+            dataManagementMessage.textContent = '';
+            dataManagementMessage.classList.remove('text-green-500', 'text-red-500');
 
             const reader = new FileReader();
             reader.onload = async function(e) {
@@ -666,16 +660,25 @@
                     const importedData = JSON.parse(e.target.result);
                     // Basic validation
                     if (importedData.scheduleStructure && importedData.dailyLogs) {
-                        appData = importedData;
-                        await saveAppData(); // Save the newly imported data to localStorage
-                        alert('Data imported successfully! The app will now reload.');
-                        location.reload();
+                        localStorage.setItem('schedulerApp', e.target.result);
+                        
+                        await populateStateAndRender(importedData);
+                        
+                        dataManagementMessage.textContent = 'Data imported successfully!';
+                        dataManagementMessage.classList.add('text-green-500');
+
+                        setTimeout(() => { dataManagementMessage.textContent = ''; }, 3000);
+
                     } else {
-                        alert('Invalid data file. Please select a valid planner backup file.');
+                        dataManagementMessage.textContent = 'Invalid data file.';
+                        dataManagementMessage.classList.add('text-red-500');
                     }
                 } catch (error) {
-                    alert('Error reading or parsing file. Please ensure it is a valid backup file.');
+                    dataManagementMessage.textContent = 'Error reading or parsing file.';
+                    dataManagementMessage.classList.add('text-red-500');
                     console.error('Import error:', error);
+                } finally {
+                    event.target.value = '';
                 }
             };
             reader.readAsText(file);
@@ -696,9 +699,17 @@
             itemDiv.innerHTML = `
                 <input type="checkbox" id="${type}-item-${index}" data-index="${index}" class="h-5 w-5 rounded border-gray-300 text-[var(--color-primary-600)] focus:ring-[var(--color-primary-600)] cursor-pointer flex-shrink-0" ${item.completed ? 'checked' : ''}>
                 <label for="${type}-item-${index}" class="text-slate-700 cursor-pointer flex-grow">${item.text}</label>
-                <button data-index="${index}" class="delete-btn p-1 text-slate-400 hover:text-red-500 hover:bg-red-100 rounded-full flex-shrink-0">
-                    <svg class="h-5 w-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
+                <div class="flex items-center">
+                    <button data-index="${index}" class="move-up-btn p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full flex-shrink-0" title="Move Up">
+                        <svg class="h-5 w-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>
+                    </button>
+                    <button data-index="${index}" class="move-down-btn p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full flex-shrink-0" title="Move Down">
+                        <svg class="h-5 w-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <button data-index="${index}" class="delete-btn p-1 text-slate-400 hover:text-red-500 hover:bg-red-100 rounded-full flex-shrink-0">
+                        <svg class="h-5 w-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
             `;
             return itemDiv;
         }
@@ -1560,13 +1571,14 @@
                     list[index].completed = target.checked;
                     if(saveFn) saveFn();
                 }
+                return;
             }
 
             const deleteBtn = target.closest('.delete-btn');
             if (deleteBtn) {
                 const indexToDelete = parseInt(deleteBtn.dataset.index, 10);
                 if (!isNaN(indexToDelete)) {
-                    const itemElement = deleteBtn.parentElement;
+                    const itemElement = deleteBtn.closest('.checklist-item');
                     itemElement.classList.add('fade-out');
                     setTimeout(() => {
                         list.splice(indexToDelete, 1);
@@ -1574,6 +1586,29 @@
                         if(saveFn) saveFn();
                     }, 300);
                 }
+                return;
+            }
+
+            const moveUpBtn = target.closest('.move-up-btn');
+            if (moveUpBtn) {
+                const index = parseInt(moveUpBtn.dataset.index, 10);
+                if (index > 0) {
+                    [list[index - 1], list[index]] = [list[index], list[index - 1]]; // Swap elements
+                    renderFn();
+                    if (saveFn) saveFn();
+                }
+                return;
+            }
+
+            const moveDownBtn = target.closest('.move-down-btn');
+            if (moveDownBtn) {
+                const index = parseInt(moveDownBtn.dataset.index, 10);
+                if (index < list.length - 1) {
+                    [list[index + 1], list[index]] = [list[index], list[index + 1]]; // Swap elements
+                    renderFn();
+                    if (saveFn) saveFn();
+                }
+                return;
             }
         }
         
@@ -1910,13 +1945,8 @@
         }
 
 
-        // --- Conditional Initialization ---
+        // --- Initialization ---
         async function init() {
-            authModal.classList.add('hidden');
-            appContainer.classList.remove('hidden');
-            if(document.getElementById('logout-btn')) {
-                document.getElementById('logout-btn').style.display = 'none';
-            }
             await loadAppData();
             startReminderChecker();
             setInterval(updateCurrentTaskHighlight, 60000);
